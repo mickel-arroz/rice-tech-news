@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AsciiRainBg from '@/components/AsciiRainBg';
 import DateSelector from '@/components/DateSelector';
 import EmptyState from '@/components/EmptyState';
@@ -39,6 +39,28 @@ export default function NewsApp() {
   const [selectedDate, setSelectedDate] = useState(fallbackDates[0].date);
   const [days, setDays] = useState<Record<string, DayState>>({});
   const [openStory, setOpenStory] = useState<LocalizedStory | null>(null);
+
+  // Con la modal abierta, el gesto/botón de atrás la cierra en vez de salir de la página
+  const dialogOpen = openStory !== null;
+  const closedByPopRef = useRef(false);
+  useEffect(() => {
+    if (!dialogOpen) return;
+    window.history.pushState({ storyDialog: true }, '');
+    const onPop = () => {
+      closedByPopRef.current = true;
+      setOpenStory(null);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      if (closedByPopRef.current) {
+        closedByPopRef.current = false;
+      } else {
+        // Cerrada desde la UI (X, Escape, clic fuera): consumir la entrada del historial
+        window.history.back();
+      }
+    };
+  }, [dialogOpen]);
 
   // Disponibilidad de los 7 días; si falla, se dejan todos habilitados
   useEffect(() => {
@@ -102,7 +124,7 @@ export default function NewsApp() {
 
           {day === 'loading' && (
             <div className="flex flex-col gap-6">
-              <div className="flex items-center gap-3 text-[var(--text-muted)]">
+              <div className="flex items-center gap-3 text-(--text-muted)">
                 <Spinner />
                 <Typography variant="MUTED" className="uppercase tracking-widest">
                   {t.loading}
