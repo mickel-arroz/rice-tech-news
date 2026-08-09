@@ -7,7 +7,7 @@ import {
   CardTitle,
 } from '@/components/ui/card/card';
 import { Typography } from '@/components/ui/typography/typography';
-import { CommentIcon, PointsIcon } from '@/components/icons';
+import { ArrowUpRightIcon, CommentIcon, PointsIcon } from '@/components/icons';
 import type { Lang, LocalizedStory } from '@/lib/types';
 
 interface StoryCardProps {
@@ -30,26 +30,34 @@ export default function StoryCard({ lang, story, onOpen }: StoryCardProps) {
   const { points, comments } = metrics(story);
   const sourceNames = [...new Set(story.sources.map((s) => s.name))];
 
+  const words = story.title.trim().split(/\s+/);
+  const lastWord = words.pop() ?? '';
+  const leadingWords = words.length ? words.join(' ') + ' ' : '';
+
   return (
     <Card className="flex h-full flex-col transition-shadow hover:shadow-[var(--glow-green)]">
-      <CardHeader>
+      <CardHeader className="gap-3">
         <div className="flex flex-wrap items-center gap-1.5">
           {sourceNames.map((name) => (
             <Badge key={name} variant="ACTIVE">
               {name}
             </Badge>
           ))}
-          {story.sources.length > 1 && (
-            <Badge variant="WARNING">×{story.sources.length}</Badge>
-          )}
         </div>
         <CardTitle>
           <button
             type="button"
             onClick={() => onOpen(story)}
-            className="glitch-hover cursor-pointer bg-transparent p-0 text-left font-mono text-base font-semibold tracking-wide text-[var(--text-secondary)] transition-colors hover:text-[var(--color-green)] hover:[text-shadow:var(--text-glow-green)]"
+            className="glitch-hover cursor-pointer bg-transparent p-0 text-left font-mono text-base font-semibold tracking-wide text-[var(--color-green)] transition-colors hover:text-[var(--color-green)] hover:[text-shadow:var(--text-glow-green)]"
           >
-            {story.title}
+            {leadingWords}
+            <span className="whitespace-nowrap">
+              {lastWord}
+              <ArrowUpRightIcon
+                size={14}
+                className="ml-1 inline-block align-text-bottom"
+              />
+            </span>
           </button>
         </CardTitle>
       </CardHeader>

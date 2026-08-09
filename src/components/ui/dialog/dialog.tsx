@@ -124,7 +124,7 @@ const DialogTitle = React.forwardRef<
     style={{
       fontSize:      '0.85rem',
       fontWeight:    700,
-      color:         'var(--text-secondary)',
+      color:         'var(--color-green)',
       letterSpacing: '0.08em',
       textTransform: 'uppercase',
       margin:        0,

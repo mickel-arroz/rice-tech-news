@@ -23,7 +23,7 @@ export default function StoryDialog({ lang, story, onClose }: StoryDialogProps) 
   const t = strings[lang];
   return (
     <Dialog open={story !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[85vh] w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[85vh] w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-3xl">
         {story && (
           <>
             <DialogHeader>
@@ -34,7 +34,9 @@ export default function StoryDialog({ lang, story, onClose }: StoryDialogProps) 
                   </Badge>
                 ))}
               </div>
-              <DialogTitle>{story.title}</DialogTitle>
+              <DialogTitle style={{ fontSize: '1.1rem' }}>
+                {story.title}
+              </DialogTitle>
               <DialogDescription className="sr-only">
                 {story.shortSummary}
               </DialogDescription>
@@ -48,7 +50,9 @@ export default function StoryDialog({ lang, story, onClose }: StoryDialogProps) 
 
               <Separator />
 
-              <Typography variant="H4">{t.sources}</Typography>
+              <Typography variant="H4" className="text-[var(--color-green)]">
+                {t.sources}
+              </Typography>
               <ul className="flex flex-col gap-2">
                 {story.sources.map((source) => (
                   <li key={source.url}>
