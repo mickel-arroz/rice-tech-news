@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import AboutDialog from '@/components/AboutDialog';
 import AsciiRainBg from '@/components/AsciiRainBg';
 import DateSelector from '@/components/DateSelector';
 import EmptyState from '@/components/EmptyState';
@@ -39,21 +40,23 @@ export default function NewsApp() {
   const [selectedDate, setSelectedDate] = useState(fallbackDates[0].date);
   const [days, setDays] = useState<Record<string, DayState>>({});
   const [openStory, setOpenStory] = useState<LocalizedStory | null>(null);
+  const [aboutOpen, setAboutOpen] = useState(false);
   // Esperamos la disponibilidad real antes de cargar: evita pedir "hoy" (aún sin datos → 404)
   const [datesReady, setDatesReady] = useState(false);
   // Renderizamos el selector de fechas solo tras montar: evita el hydration mismatch (React #418)
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  // Con la modal abierta, el gesto/botón de atrás la cierra en vez de salir de la página
-  const dialogOpen = openStory !== null;
+  // Con una modal abierta, el gesto/botón de atrás la cierra en vez de salir de la página
+  const dialogOpen = openStory !== null || aboutOpen;
   const closedByPopRef = useRef(false);
   useEffect(() => {
     if (!dialogOpen) return;
-    window.history.pushState({ storyDialog: true }, '');
+    window.history.pushState({ modal: true }, '');
     const onPop = () => {
       closedByPopRef.current = true;
       setOpenStory(null);
+      setAboutOpen(false);
     };
     window.addEventListener('popstate', onPop);
     return () => {
@@ -121,7 +124,7 @@ export default function NewsApp() {
     <>
       <AsciiRainBg />
       <div className="relative z-10 min-h-screen">
-        <Header lang={lang} onLangChange={setLang} />
+        <Header lang={lang} onLangChange={setLang} onAbout={() => setAboutOpen(true)} />
 
         <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 pb-16 pt-6 sm:px-8">
           {mounted && (
@@ -184,6 +187,8 @@ export default function NewsApp() {
       </div>
 
       <StoryDialog lang={lang} story={openStory} onClose={() => setOpenStory(null)} />
+
+      <AboutDialog lang={lang} open={aboutOpen} onClose={() => setAboutOpen(false)} />
     </>
   );
 }
