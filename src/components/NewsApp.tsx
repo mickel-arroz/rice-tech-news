@@ -39,6 +39,11 @@ export default function NewsApp() {
   const [selectedDate, setSelectedDate] = useState(fallbackDates[0].date);
   const [days, setDays] = useState<Record<string, DayState>>({});
   const [openStory, setOpenStory] = useState<LocalizedStory | null>(null);
+  // Esperamos la disponibilidad real antes de cargar: evita pedir "hoy" (aún sin datos → 404)
+  const [datesReady, setDatesReady] = useState(false);
+  // Renderizamos el selector de fechas solo tras montar: evita el hydration mismatch (React #418)
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   // Con la modal abierta, el gesto/botón de atrás la cierra en vez de salir de la página
   const dialogOpen = openStory !== null;
@@ -77,7 +82,10 @@ export default function NewsApp() {
           return data.dates.find((d) => d.available)?.date ?? current;
         });
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setDatesReady(true);
+      });
     return () => {
       cancelled = true;
     };
@@ -101,9 +109,10 @@ export default function NewsApp() {
   }, []);
 
   useEffect(() => {
+    if (!datesReady) return;
     if (!days[`${selectedDate}:${lang}`]) loadDay(selectedDate, lang);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, lang]);
+  }, [selectedDate, lang, datesReady]);
 
   const t = strings[lang];
   const day = days[`${selectedDate}:${lang}`] ?? 'loading';
@@ -115,12 +124,14 @@ export default function NewsApp() {
         <Header lang={lang} onLangChange={setLang} />
 
         <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 pb-16 pt-6 sm:px-8">
-          <DateSelector
-            lang={lang}
-            dates={dates}
-            selected={selectedDate}
-            onSelect={setSelectedDate}
-          />
+          {mounted && (
+            <DateSelector
+              lang={lang}
+              dates={dates}
+              selected={selectedDate}
+              onSelect={setSelectedDate}
+            />
+          )}
 
           {day === 'loading' && (
             <div className="flex flex-col gap-6">
