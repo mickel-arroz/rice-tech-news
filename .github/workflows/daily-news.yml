@@ -1,0 +1,28 @@
+name: Daily news pipeline
+
+on:
+  schedule:
+    # 03:00 UTC = 23:00 ET en verano (EDT) / 22:00 ET en invierno (EST) — fin del día de noticias en EE.UU.
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  aggregate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run pipeline
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODELS: ${{ vars.GEMINI_MODELS }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
