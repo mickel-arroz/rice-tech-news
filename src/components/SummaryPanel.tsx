@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge/badge';
+import SpeakButton from '@/components/SpeakButton';
 import {
   Panel,
   PanelContent,
@@ -22,6 +23,7 @@ export default function SummaryPanel({ lang, day, storyCount }: SummaryPanelProp
       <PanelHeader>
         <PanelTitle>{t.dailySummary}</PanelTitle>
         <span className="ml-auto flex items-center gap-2">
+          <SpeakButton text={day.summary} lang={lang} size="SM" />
           <Badge variant="ACTIVE">{t.storiesCount(storyCount ?? day.stories.length)}</Badge>
         </span>
       </PanelHeader>

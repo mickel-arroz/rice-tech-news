@@ -31,6 +31,8 @@ export const strings = {
     allSources: 'Todas',
     clearSources: 'Ninguna',
     filterEmpty: 'Ninguna noticia coincide con las fuentes seleccionadas.',
+    listen: 'Escuchar',
+    stop: 'Detener',
   },
   en: {
     tagline: 'Tech & programming news, summarized by AI',
@@ -58,6 +60,8 @@ export const strings = {
     allSources: 'All',
     clearSources: 'None',
     filterEmpty: 'No stories match the selected sources.',
+    listen: 'Listen',
+    stop: 'Stop',
   },
 } satisfies Record<Lang, Record<string, string | ((n: number) => string)>>;
 

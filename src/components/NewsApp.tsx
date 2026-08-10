@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton/skeleton';
 import { Spinner } from '@/components/ui/spinner/spinner';
 import { Typography } from '@/components/ui/typography/typography';
 import { lastNDates } from '@/lib/date';
+import { stop as stopSpeech } from '@/lib/tts';
 import {
   ALL_SOURCES,
   DEFAULT_LANG,
@@ -82,6 +83,12 @@ export default function NewsApp() {
   // Renderizamos el selector de fechas solo tras montar: evita el hydration mismatch (React #418)
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  // Al cambiar de idioma (o desmontar) cortamos cualquier lectura en la voz anterior.
+  useEffect(() => {
+    stopSpeech();
+    return () => stopSpeech();
+  }, [lang]);
 
   // Con una modal abierta, el gesto/botón de atrás la cierra en vez de salir de la página
   const dialogOpen = openStory !== null || aboutOpen;

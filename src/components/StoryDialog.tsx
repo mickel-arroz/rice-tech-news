@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { Badge } from '@/components/ui/badge/badge';
+import SpeakButton from '@/components/SpeakButton';
 import {
   Dialog,
   DialogBody,
@@ -11,6 +13,7 @@ import { Separator } from '@/components/ui/separator/separator';
 import { Typography } from '@/components/ui/typography/typography';
 import { CommentIcon, ExternalLinkIcon, PointsIcon } from '@/components/icons';
 import { strings } from '@/lib/i18n';
+import { stop } from '@/lib/tts';
 import type { Lang, LocalizedStory } from '@/lib/types';
 
 interface StoryDialogProps {
@@ -21,6 +24,13 @@ interface StoryDialogProps {
 
 export default function StoryDialog({ lang, story, onClose }: StoryDialogProps) {
   const t = strings[lang];
+  // Al cerrar la modal (story pasa a null) o desmontar, cortamos cualquier lectura.
+  useEffect(() => {
+    if (!story) stop();
+    return () => stop();
+  }, [story]);
+  // Solo leer la descripción (longSummary), no el título
+  const ttsText = story ? story.longSummary.join('. ') : '';
   return (
     <Dialog open={story !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[85vh] w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-3xl">
@@ -37,6 +47,9 @@ export default function StoryDialog({ lang, story, onClose }: StoryDialogProps) 
               <DialogTitle style={{ fontSize: '1.1rem' }}>
                 {story.title}
               </DialogTitle>
+              <div className="flex justify-end">
+                <SpeakButton text={ttsText} lang={lang} size="SM" />
+              </div>
               <DialogDescription className="sr-only">
                 {story.shortSummary}
               </DialogDescription>

@@ -106,6 +106,33 @@ export function FunnelIcon(props: IconProps) {
   );
 }
 
+export function SpeakerIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M4 9h4l5-4v14l-5-4H4V9Z" />
+      <path d="M16 8a5 5 0 0 1 0 8" />
+      <path d="M19 5a9 9 0 0 1 0 14" />
+    </svg>
+  );
+}
+
+export function MutedSpeakerIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M4 9h4l5-4v14l-5-4H4V9Z" />
+      <path d="M23 9l-6 6m0-6l6 6" />
+    </svg>
+  );
+}
+
+export function StopIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <rect x="6" y="6" width="12" height="12" fill="currentColor" />
+    </svg>
+  );
+}
+
 export function SignalIcon(props: IconProps) {
   return (
     <svg {...base(props)}>
