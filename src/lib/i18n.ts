@@ -2,6 +2,7 @@ import type { Lang, SourceName } from './types';
 
 export const LANG_STORAGE_KEY = 'rtn:lang';
 export const SOURCES_STORAGE_KEY = 'rtn:sources';
+export const ADS_STORAGE_KEY = 'rtn:ads';
 export const DEFAULT_LANG: Lang = 'es';
 
 export const strings = {
@@ -35,6 +36,10 @@ export const strings = {
     stop: 'Detener',
     liveFeed: 'En vivo',
     offline: 'Sin conexión',
+    adsLabel: 'Publicidad',
+    adLabel: 'Publicidad',
+    privacy: 'Privacidad',
+    terms: 'Términos',
   },
   en: {
     tagline: 'Tech & programming news, summarized by AI',
@@ -66,6 +71,10 @@ export const strings = {
     stop: 'Stop',
     liveFeed: 'Live feed',
     offline: 'Offline',
+    adsLabel: 'Advertising',
+    adLabel: 'Advertisement',
+    privacy: 'Privacy',
+    terms: 'Terms',
   },
 } satisfies Record<Lang, Record<string, string | ((n: number) => string)>>;
 

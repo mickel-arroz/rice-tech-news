@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AboutDialog from '@/components/AboutDialog';
-import AsciiRainBg from '@/components/AsciiRainBg';
+import AboutFooter from '@/components/AboutFooter';
+import AdBanner from '@/components/AdBanner';
 import DateSelector from '@/components/DateSelector';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
@@ -14,10 +15,10 @@ import { Spinner } from '@/components/ui/spinner/spinner';
 import { Typography } from '@/components/ui/typography/typography';
 import { lastNDates } from '@/lib/date';
 import { stop as stopSpeech } from '@/lib/tts';
+import { useLang } from '@/lib/useLang';
 import {
+  ADS_STORAGE_KEY,
   ALL_SOURCES,
-  DEFAULT_LANG,
-  LANG_STORAGE_KEY,
   SOURCES_STORAGE_KEY,
   strings,
 } from '@/lib/i18n';
@@ -30,19 +31,6 @@ import type {
 } from '@/lib/types';
 
 type DayState = DayResponse | 'loading' | 'missing' | 'error';
-
-function useLang(): [Lang, (l: Lang) => void] {
-  const [lang, setLang] = useState<Lang>(DEFAULT_LANG);
-  useEffect(() => {
-    const saved = localStorage.getItem(LANG_STORAGE_KEY);
-    if (saved === 'es' || saved === 'en') setLang(saved);
-  }, []);
-  const update = useCallback((l: Lang) => {
-    setLang(l);
-    localStorage.setItem(LANG_STORAGE_KEY, l);
-  }, []);
-  return [lang, update];
-}
 
 function useSourceFilter(): [SourceName[], (next: SourceName[]) => void] {
   // Inicial = todas: el render por defecto (y el SSR) coincide, evitando hydration mismatch
@@ -66,9 +54,23 @@ function useSourceFilter(): [SourceName[], (next: SourceName[]) => void] {
   return [sources, update];
 }
 
+function useAdsEnabled(): [boolean, (v: boolean) => void] {
+  const [enabled, setEnabled] = useState(true);
+  useEffect(() => {
+    const saved = localStorage.getItem(ADS_STORAGE_KEY);
+    if (saved === 'off') setEnabled(false);
+  }, []);
+  const update = useCallback((v: boolean) => {
+    setEnabled(v);
+    localStorage.setItem(ADS_STORAGE_KEY, v ? 'on' : 'off');
+  }, []);
+  return [enabled, update];
+}
+
 export default function NewsApp() {
   const [lang, setLang] = useLang();
   const [selectedSources, setSelectedSources] = useSourceFilter();
+  const [adsEnabled, setAdsEnabled] = useAdsEnabled();
   const fallbackDates = useMemo(
     () => lastNDates(7).map((date) => ({ date, available: true })),
     [],
@@ -175,11 +177,14 @@ export default function NewsApp() {
 
   return (
     <>
-      <AsciiRainBg />
-      <div className="relative z-10 min-h-screen">
-        <Header lang={lang} onLangChange={setLang} onAbout={() => setAboutOpen(true)} />
+      <Header
+        lang={lang}
+        onLangChange={setLang}
+        adsEnabled={adsEnabled}
+        onAdsChange={setAdsEnabled}
+      />
 
-        <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 pb-16 pt-6 sm:px-8">
+      <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 pb-16 pt-6 sm:px-8">
           {mounted && (
             <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1">
@@ -240,6 +245,11 @@ export default function NewsApp() {
                         onOpen={setOpenStory}
                       />
                     ))}
+                    <AdBanner
+                      lang={lang}
+                      enabled={adsEnabled}
+                      className="col-span-1 md:col-span-2"
+                    />
                   </div>
                 ) : (
                   <Typography
@@ -252,10 +262,11 @@ export default function NewsApp() {
               </section>
             </>
           )}
+
+          <AboutFooter lang={lang} onAbout={() => setAboutOpen(true)} />
         </main>
 
-        <Footer lang={lang} />
-      </div>
+      <Footer lang={lang} />
 
       <StoryDialog lang={lang} story={openStory} onClose={() => setOpenStory(null)} />
 

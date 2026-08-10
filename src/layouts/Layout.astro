@@ -1,5 +1,6 @@
 ---
 import '@/styles/globals.css';
+import AsciiRainBg from '@/components/AsciiRainBg';
 
 interface Props {
   title?: string;
@@ -15,6 +16,9 @@ const {
 
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 const imageURL = new URL(image, Astro.site);
+
+const adsenseClient =
+  import.meta.env.PUBLIC_ADSENSE_CLIENT ?? 'ca-pub-5700834832872809';
 ---
 
 <!doctype html>
@@ -27,6 +31,17 @@ const imageURL = new URL(image, Astro.site);
     <link rel="canonical" href={canonicalURL} />
     <meta name="generator" content={Astro.generator} />
     <meta name="theme-color" content="#050505" />
+
+    <!-- Google AdSense -->
+    {
+      adsenseClient && (
+        <script
+          async
+          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseClient}`}
+          crossorigin="anonymous"
+        />
+      )
+    }
 
     <!-- PWA -->
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -58,7 +73,10 @@ const imageURL = new URL(image, Astro.site);
     <meta name="twitter:image" content={imageURL} />
   </head>
   <body>
-    <slot />
+    <AsciiRainBg client:only="react" />
+    <div class="relative z-10 min-h-screen">
+      <slot />
+    </div>
     <script is:inline>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
