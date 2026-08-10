@@ -15,7 +15,7 @@ export interface GeminiResult {
   stories: GeminiStory[];
 }
 
-const DEFAULT_MODELS = ['gemini-2.5-pro', 'gemini-3.5-flash', 'gemini-2.5-flash'];
+const DEFAULT_MODELS = ['gemini-3.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash'];
 
 const bilingualString = {
   type: Type.OBJECT,
