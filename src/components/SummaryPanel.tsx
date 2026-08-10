@@ -12,16 +12,17 @@ import type { DayResponse, Lang } from '@/lib/types';
 interface SummaryPanelProps {
   lang: Lang;
   day: DayResponse;
+  storyCount?: number;
 }
 
-export default function SummaryPanel({ lang, day }: SummaryPanelProps) {
+export default function SummaryPanel({ lang, day, storyCount }: SummaryPanelProps) {
   const t = strings[lang];
   return (
     <Panel notch="md" className="scanlines">
       <PanelHeader>
         <PanelTitle>{t.dailySummary}</PanelTitle>
         <span className="ml-auto flex items-center gap-2">
-          <Badge variant="ACTIVE">{t.storiesCount(day.stories.length)}</Badge>
+          <Badge variant="ACTIVE">{t.storiesCount(storyCount ?? day.stories.length)}</Badge>
         </span>
       </PanelHeader>
       <PanelContent>

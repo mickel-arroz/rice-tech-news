@@ -1,6 +1,7 @@
-import type { Lang } from './types';
+import type { Lang, SourceName } from './types';
 
 export const LANG_STORAGE_KEY = 'rtn:lang';
+export const SOURCES_STORAGE_KEY = 'rtn:sources';
 export const DEFAULT_LANG: Lang = 'es';
 
 export const strings = {
@@ -26,6 +27,10 @@ export const strings = {
     storiesCount: (n: number) => `${n} noticias`,
     langLabel: 'Idioma',
     about: 'Acerca de',
+    filterSources: 'Filtrar fuentes',
+    allSources: 'Todas',
+    clearSources: 'Ninguna',
+    filterEmpty: 'Ninguna noticia coincide con las fuentes seleccionadas.',
   },
   en: {
     tagline: 'Tech & programming news, summarized by AI',
@@ -49,6 +54,10 @@ export const strings = {
     storiesCount: (n: number) => `${n} stories`,
     langLabel: 'Language',
     about: 'About',
+    filterSources: 'Filter sources',
+    allSources: 'All',
+    clearSources: 'None',
+    filterEmpty: 'No stories match the selected sources.',
   },
 } satisfies Record<Lang, Record<string, string | ((n: number) => string)>>;
 
@@ -71,6 +80,9 @@ export const aboutSources = [
   { name: 'The Verge', url: 'https://www.theverge.com' },
   { name: 'Ars Technica', url: 'https://arstechnica.com' },
 ] as const;
+
+/** Derivado de `aboutSources` para no duplicar la lista de sitios. */
+export const ALL_SOURCES: SourceName[] = aboutSources.map((s) => s.name);
 
 interface AboutContent {
   title: string;

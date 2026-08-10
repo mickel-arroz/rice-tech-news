@@ -98,6 +98,14 @@ export function GitHubIcon(props: IconProps) {
   );
 }
 
+export function FunnelIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M4 5h16l-6 7v5l-4 2v-7L4 5Z" />
+    </svg>
+  );
+}
+
 export function SignalIcon(props: IconProps) {
   return (
     <svg {...base(props)}>
