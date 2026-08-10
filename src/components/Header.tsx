@@ -1,8 +1,9 @@
 import { Badge } from '@/components/ui/badge/badge';
 import { Button } from '@/components/ui/button/button';
 import { Typography } from '@/components/ui/typography/typography';
-import { GlobeIcon, InfoIcon, SignalIcon } from '@/components/icons';
+import { GlobeIcon, InfoIcon, SignalIcon, SignalOffIcon } from '@/components/icons';
 import { strings } from '@/lib/i18n';
+import { useOnlineStatus } from '@/lib/useOnlineStatus';
 import type { Lang } from '@/lib/types';
 
 interface HeaderProps {
@@ -37,13 +38,20 @@ function LangToggle({ lang, onLangChange }: Pick<HeaderProps, 'lang' | 'onLangCh
 
 export default function Header({ lang, onLangChange, onAbout }: HeaderProps) {
   const t = strings[lang];
+  const online = useOnlineStatus();
   return (
-    <header className="scanlines relative border-b border-[var(--border)] bg-[var(--surface)]/80 px-4 py-8 sm:px-8">
-      <div className="mx-auto flex max-w-5xl flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <header className="scanlines relative border-b border-[var(--border)] bg-[var(--surface)]/80 px-4 py-5 sm:px-8">
+      <div className="mx-auto flex max-w-[96rem] flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="mb-2 flex items-center gap-2">
-            <SignalIcon size={14} className="pulse-glow text-[var(--color-green)]" />
-            <Badge variant="SCANNING">LIVE FEED</Badge>
+            {online ? (
+              <SignalIcon size={14} className="pulse-glow text-[var(--color-green)]" />
+            ) : (
+              <SignalOffIcon size={14} className="text-[var(--color-red)]" />
+            )}
+            <Badge variant={online ? 'SCANNING' : 'CRITICAL'}>
+              {online ? t.liveFeed : t.offline}
+            </Badge>
           </div>
           <Typography variant="H1" className="flicker text-2xl sm:text-3xl">
             Rice Tech News

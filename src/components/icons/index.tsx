@@ -143,3 +143,14 @@ export function SignalIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function SignalOffIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M12 14v7" />
+      <path d="M4 5a11 11 0 0 1 12.5 -1.8" />
+      <path d="M8.7 8.2a7 7 0 0 1 6 -.3" />
+      <path d="M3 3l18 18" />
+    </svg>
+  );
+}

@@ -33,6 +33,8 @@ export const strings = {
     filterEmpty: 'Ninguna noticia coincide con las fuentes seleccionadas.',
     listen: 'Escuchar',
     stop: 'Detener',
+    liveFeed: 'En vivo',
+    offline: 'Sin conexión',
   },
   en: {
     tagline: 'Tech & programming news, summarized by AI',
@@ -62,6 +64,8 @@ export const strings = {
     filterEmpty: 'No stories match the selected sources.',
     listen: 'Listen',
     stop: 'Stop',
+    liveFeed: 'Live feed',
+    offline: 'Offline',
   },
 } satisfies Record<Lang, Record<string, string | ((n: number) => string)>>;
 
