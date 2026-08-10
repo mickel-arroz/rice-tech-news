@@ -129,10 +129,12 @@ export async function summarizeWithGemini(items: RawItem[]): Promise<GeminiResul
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('Falta GEMINI_API_KEY');
 
-  const models = (process.env.GEMINI_MODELS ?? DEFAULT_MODELS.join(','))
+  // GEMINI_MODELS vacío (p.ej. una Variable de repo sin definir llega como "") cae a DEFAULT_MODELS.
+  const configured = (process.env.GEMINI_MODELS ?? '')
     .split(',')
     .map((m) => m.trim())
     .filter(Boolean);
+  const models = configured.length > 0 ? configured : DEFAULT_MODELS;
 
   const ai = new GoogleGenAI({ apiKey });
   const prompt = buildPrompt(items);
