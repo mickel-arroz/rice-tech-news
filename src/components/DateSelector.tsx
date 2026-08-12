@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
+import SourceFilter from '@/components/SourceFilter';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs/tabs';
 import { CalendarIcon } from '@/components/icons';
 import { newsDateString } from '@/lib/date';
 import { dateTabLabel, strings } from '@/lib/i18n';
-import type { DateAvailability, Lang } from '@/lib/types';
+import type { DateAvailability, Lang, SourceName } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 interface DateSelectorProps {
@@ -11,10 +12,13 @@ interface DateSelectorProps {
   dates: DateAvailability[];
   selected: string;
   onSelect: (date: string) => void;
+  selectedSources: SourceName[];
+  onSourcesChange: (next: SourceName[]) => void;
 }
 
 // Ancho reservado por cada botón "…" al calcular cuántas pestañas caben
 const MORE_BTN_WIDTH = 56;
+const FIT_SLACK = 12;
 
 interface OverflowMenuProps {
   items: DateAvailability[];
@@ -38,7 +42,7 @@ function OverflowMenu({
   menuRef,
 }: OverflowMenuProps) {
   return (
-    <div ref={menuRef} className={cn('relative', align === 'right' && 'ml-auto')}>
+    <div ref={menuRef} className="relative shrink-0">
       <button
         type="button"
         aria-haspopup="menu"
@@ -83,13 +87,21 @@ function OverflowMenu({
   );
 }
 
-export default function DateSelector({ lang, dates, selected, onSelect }: DateSelectorProps) {
+export default function DateSelector({
+  lang,
+  dates,
+  selected,
+  onSelect,
+  selectedSources,
+  onSourcesChange,
+}: DateSelectorProps) {
   const t = strings[lang];
   const today = newsDateString();
   const label = (date: string) => (date === today ? t.today : dateTabLabel(date, lang));
 
   const listRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
+  const filterRef = useRef<HTMLDivElement>(null);
   const leftMenuRef = useRef<HTMLDivElement>(null);
   const rightMenuRef = useRef<HTMLDivElement>(null);
   const [window, setWindow] = useState<[number, number]>([0, dates.length - 1]);
@@ -104,7 +116,8 @@ export default function DateSelector({ lang, dates, selected, onSelect }: DateSe
       const widths = Array.from(measureRef.current?.children ?? []).map(
         (c) => (c as HTMLElement).offsetWidth,
       );
-      const available = el.clientWidth;
+      const filterW = filterRef.current?.offsetWidth ?? 0;
+      const available = el.clientWidth - filterW - FIT_SLACK;
       const n = dates.length;
       if (widths.reduce((a, b) => a + b, 0) <= available) {
         setWindow([0, n - 1]);
@@ -115,7 +128,6 @@ export default function DateSelector({ lang, dates, selected, onSelect }: DateSe
         0,
         dates.findIndex((d) => d.date === selected),
       );
-      const budget = available - 2 * MORE_BTN_WIDTH;
       let start = s;
       let end = s;
       let used = widths[s] ?? 0;
@@ -123,6 +135,9 @@ export default function DateSelector({ lang, dates, selected, onSelect }: DateSe
       let expanded = true;
       while (expanded) {
         expanded = false;
+        const reserve =
+          (end + 1 < n ? MORE_BTN_WIDTH : 0) + (start > 0 ? MORE_BTN_WIDTH : 0);
+        const budget = available - reserve;
         if (end + 1 < n && used + widths[end + 1] <= budget) {
           end++;
           used += widths[end];
@@ -139,7 +154,17 @@ export default function DateSelector({ lang, dates, selected, onSelect }: DateSe
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
-    return () => observer.disconnect();
+    // Recalcular cuando la fuente web (display=swap) termina de cargar
+    let cancelled = false;
+    if (typeof document !== 'undefined' && 'fonts' in document) {
+      document.fonts.ready.then(() => {
+        if (!cancelled) measure();
+      });
+    }
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+    };
   }, [dates, lang, selected]);
 
   useEffect(() => {
@@ -176,56 +201,68 @@ export default function DateSelector({ lang, dates, selected, onSelect }: DateSe
       <div
         ref={measureRef}
         aria-hidden
-        className="pointer-events-none invisible absolute -z-10 flex h-0 overflow-hidden whitespace-nowrap"
+        className="pointer-events-none invisible absolute -z-10 flex h-0 w-0 overflow-hidden whitespace-nowrap"
       >
         {dates.map((d) => (
-          <span
+          <button
             key={d.date}
-            className="px-4 py-2 font-mono text-[0.7rem] font-medium uppercase tracking-widest"
+            type="button"
+            tabIndex={-1}
+            className="shrink-0 border-b-2 border-transparent px-4 py-2 font-mono text-[0.7rem] font-medium uppercase tracking-widest"
           >
             {label(d.date)}
-          </span>
+          </button>
         ))}
       </div>
 
       <Tabs value={selected} onValueChange={onSelect} className="min-w-0 flex-1">
         <TabsList ref={listRef} className="flex-nowrap">
-          {leftOverflow.length > 0 && (
-            <OverflowMenu
-              items={leftOverflow}
-              align="left"
-              open={openMenu === 'left'}
-              selected={selected}
-              label={label}
-              onToggle={() => setOpenMenu((m) => (m === 'left' ? null : 'left'))}
-              onSelect={pick}
-              menuRef={leftMenuRef}
-            />
-          )}
+          <div className="flex min-w-0 flex-1 items-end justify-center">
+            {leftOverflow.length > 0 && (
+              <OverflowMenu
+                items={leftOverflow}
+                align="left"
+                open={openMenu === 'left'}
+                selected={selected}
+                label={label}
+                onToggle={() => setOpenMenu((m) => (m === 'left' ? null : 'left'))}
+                onSelect={pick}
+                menuRef={leftMenuRef}
+              />
+            )}
 
-          {visible.map((d) => (
-            <TabsTrigger
-              key={d.date}
-              value={d.date}
-              disabled={!d.available}
-              className="whitespace-nowrap"
-            >
-              {label(d.date)}
-            </TabsTrigger>
-          ))}
+            {visible.map((d) => (
+              <TabsTrigger
+                key={d.date}
+                value={d.date}
+                disabled={!d.available}
+                className="whitespace-nowrap"
+              >
+                {label(d.date)}
+              </TabsTrigger>
+            ))}
 
-          {rightOverflow.length > 0 && (
-            <OverflowMenu
-              items={rightOverflow}
-              align="right"
-              open={openMenu === 'right'}
-              selected={selected}
-              label={label}
-              onToggle={() => setOpenMenu((m) => (m === 'right' ? null : 'right'))}
-              onSelect={pick}
-              menuRef={rightMenuRef}
+            {rightOverflow.length > 0 && (
+              <OverflowMenu
+                items={rightOverflow}
+                align="right"
+                open={openMenu === 'right'}
+                selected={selected}
+                label={label}
+                onToggle={() => setOpenMenu((m) => (m === 'right' ? null : 'right'))}
+                onSelect={pick}
+                menuRef={rightMenuRef}
+              />
+            )}
+          </div>
+
+          <div ref={filterRef} className="shrink-0 self-center pl-2">
+            <SourceFilter
+              lang={lang}
+              selected={selectedSources}
+              onChange={onSourcesChange}
             />
-          )}
+          </div>
         </TabsList>
       </Tabs>
     </div>
