@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { lastNDates, redisKeyForDate } from '@/lib/date';
+import { LOOKBACK_DAYS, lastNDates, redisKeyForDate } from '@/lib/date';
 import { getRedis } from '@/lib/redis';
 import type { DayMeta, DayResponse, LocalizedDay } from '@/lib/types';
 
@@ -15,8 +15,8 @@ export const GET: APIRoute = async ({ url }) => {
   if (lang !== 'es' && lang !== 'en') {
     return Response.json({ error: 'invalid_lang' }, { status: 400 });
   }
-  // Solo formato válido Y dentro de la ventana de 7 días (evita sondear claves arbitrarias)
-  if (!DATE_RE.test(date) || !lastNDates(7).includes(date)) {
+  // Solo formato válido Y dentro de la ventana de escaneo (evita sondear claves arbitrarias)
+  if (!DATE_RE.test(date) || !lastNDates(LOOKBACK_DAYS).includes(date)) {
     return Response.json({ error: 'invalid_date' }, { status: 400 });
   }
 

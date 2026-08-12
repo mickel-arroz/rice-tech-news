@@ -21,6 +21,9 @@ export function lastNDates(n: number, from: Date = new Date()): string[] {
   return dates;
 }
 
+export const DISPLAY_DAYS = 7;
+export const LOOKBACK_DAYS = 21;
+
 export const REDIS_KEY_PREFIX = 'news:';
 
 export function redisKeyForDate(date: string): string {
