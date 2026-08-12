@@ -192,6 +192,12 @@ p {
 }
 
 /* Scrollbar */
+/* Firefox / navegadores con estándar CSS scrollbars (incluye móvil) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-green) 55%, black) var(--background);
+}
+/* WebKit / Blink (Chrome, Safari, Edge, y sus versiones móviles) */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
@@ -200,7 +206,8 @@ p {
   background: var(--background);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: color-mix(in srgb, var(--color-green) 55%, black);
+  border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--border-active);
