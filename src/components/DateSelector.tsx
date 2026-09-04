@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import SourceFilter from '@/components/SourceFilter';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs/tabs';
 import { CalendarIcon } from '@/components/icons';
-import { newsDateString } from '@/lib/date';
+import { latestPublishableDate } from '@/lib/date';
 import { dateTabLabel, strings } from '@/lib/i18n';
 import type { DateAvailability, Lang, SourceName } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -96,8 +96,10 @@ export default function DateSelector({
   onSourcesChange,
 }: DateSelectorProps) {
   const t = strings[lang];
-  const today = newsDateString();
-  const label = (date: string) => (date === today ? t.today : dateTabLabel(date, lang));
+  // El dia mas reciente publicable es ayer (hoy nunca se muestra), de ahi el rotulo
+  const yesterday = latestPublishableDate();
+  const label = (date: string) =>
+    date === yesterday ? t.yesterday : dateTabLabel(date, lang);
 
   const listRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);

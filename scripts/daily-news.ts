@@ -1,5 +1,5 @@
 import { Redis } from '@upstash/redis';
-import { lastNDates, newsDateString, redisKeyForDate } from '../src/lib/date';
+import { latestPublishableDate, rawKeyForDate, redisKeyForDate } from '../src/lib/date';
 import type {
   DayRecord,
   Lang,
@@ -7,18 +7,22 @@ import type {
   LocalizedStory,
   StorySource,
 } from '../src/lib/types';
+import { capHackerNews, mergeByUrl, shouldKeepStored } from './digest-rules';
 import { summarizeWithGemini, type GeminiStory } from './gemini';
+import type { SourceItem } from './sources/base';
 import { createAllSources } from './sources/factory';
 import type { RawItem } from './types';
 
 const DRY_RUN = process.argv.includes('--dry-run');
 const SKIP_WRITE = process.argv.includes('--skip-write');
+// Permite rehacer un día aunque el guardado tenga más items (p.ej. tras cambiar el prompt).
+const FORCE = process.argv.includes('--force');
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-// Si el cron de GitHub se retrasa y cruza la medianoche ET, seguimos apuntando al día que acaba
-// de terminar en vez del día nuevo aún vacío.
-const GRACE_MS = 3 * 3_600_000;
-const WINDOW_DAYS = 7;
+
+// Un día objetivo con menos items que esto significa que el recolector no corrió: mejor fallar
+// ruidosamente que publicar un día pobre en silencio, que es lo que venía pasando.
+const MIN_ITEMS_TARGET = 10;
 
 // --date=YYYY-MM-DD (o env NEWS_DATE) fuerza un día; null = corrida normal.
 function explicitDate(): string | null {
@@ -31,50 +35,68 @@ function explicitDate(): string | null {
   return explicit;
 }
 
-// Huecos dentro de la ventana anclados por datos más antiguos (existen 08-08 y 08-10 pero falta
-// 08-09). Excluye el borde viejo sin datos: esos días las fuentes ya no los proveen.
-async function findIntermediateGaps(
-  redis: Redis,
-  from: Date,
-  targetDate: string,
-): Promise<string[]> {
-  const window = lastNDates(WINDOW_DAYS, from);
-  const values = await redis.json.mget<unknown[]>(window.map(redisKeyForDate), '$.date');
-  const present = new Set(
-    window.filter((_, i) => Array.isArray(values[i]) && (values[i] as unknown[]).length > 0),
-  );
-  const oldestPresent = [...present].sort()[0];
-  if (!oldestPresent) return [];
-  return window.filter((d) => !present.has(d) && d > oldestPresent && d < targetDate);
+/** Items ya guardados por el recolector para ese día. */
+async function loadRawItems(redis: Redis, date: string): Promise<SourceItem[]> {
+  // hvals está tipado como Promise<any> en el SDK; el JSON se valida al parsear.
+  const values = (await redis.hvals(rawKeyForDate(date))) as (string | SourceItem)[] | null;
+  const items: SourceItem[] = [];
+  for (const value of values ?? []) {
+    try {
+      // El SDK deserializa JSON automáticamente cuando puede; toleramos ambas formas.
+      items.push(typeof value === 'string' ? (JSON.parse(value) as SourceItem) : value);
+    } catch {
+      // Un campo corrupto no debe tumbar el día entero.
+    }
+  }
+  return items;
 }
 
-async function collectItems(newsDate: string): Promise<RawItem[]> {
+/** Lo que los feeds exponen ahora mismo para ese día (poco, si el día ya cerró). */
+async function fetchLiveItems(date: string): Promise<SourceItem[]> {
   const sources = createAllSources();
-  const results = await Promise.allSettled(sources.map((s) => s.fetchItems(newsDate)));
-  const items: Omit<RawItem, 'index'>[] = [];
+  const results = await Promise.allSettled(sources.map((s) => s.fetchItems(date)));
+  const items: SourceItem[] = [];
   let okCount = 0;
 
   results.forEach((result, i) => {
     const name = sources[i].name;
     if (result.status === 'fulfilled') {
       okCount++;
-      console.log(`[fetch] ${name}: ${result.value.length} items (${newsDate})`);
+      console.log(`[fetch] ${name}: ${result.value.length} items (${date})`);
       items.push(...result.value);
     } else {
       console.error(`[fetch] ${name} FALLÓ: ${String(result.reason).slice(0, 200)}`);
     }
   });
 
-  if (okCount === 0) {
-    throw new Error('Todas las fuentes fallaron');
-  }
+  if (okCount === 0) throw new Error('Todas las fuentes fallaron');
+  return items;
+}
 
-  items.sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
-  return items.map((item, index) => ({ ...item, index }));
+/** Junta raw + feeds para un día y deja los items listos para Gemini (ordenados e indexados). */
+async function collectItems(date: string, redis: Redis | null): Promise<RawItem[]> {
+  const raw = redis ? await loadRawItems(redis, date) : [];
+  console.log(`[raw] ${rawKeyForDate(date)}: ${raw.length} items acumulados`);
+
+  const merged = mergeByUrl(raw, await fetchLiveItems(date));
+  console.log(`[pipeline] ${date}: ${raw.length} de raw + ${merged.length - raw.length} del feed`);
+
+  const capped = capHackerNews(merged);
+  if (capped.length !== merged.length) {
+    console.log(`[pipeline] Hacker News recortado: ${merged.length} → ${capped.length} items`);
+  }
+  capped.sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
+  return capped.map((item, index) => ({ ...item, index }));
+}
+
+/** Cuántos items tenía el registro ya guardado (0 si no existe). */
+async function storedCollected(redis: Redis, date: string): Promise<number> {
+  const value = await redis.json.get<number[]>(redisKeyForDate(date), '$.stats.collected');
+  return Array.isArray(value) ? Number(value[0] ?? 0) : 0;
 }
 
 function slugify(title: string, used: Set<string>): string {
-  let base = title
+  const base = title
     .toLowerCase()
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
@@ -130,10 +152,21 @@ function buildLocalizedDays(
   };
 }
 
-// Procesa UN día. 'empty' (sin items, típico en backfill de días viejos) se omite sin abortar.
-async function processDay(date: string, redis: Redis | null): Promise<'ok' | 'empty' | 'preview'> {
-  const items = await collectItems(date);
-  console.log(`[pipeline] ${date}: ${items.length} items`);
+type DayOutcome = 'ok' | 'empty' | 'preview' | 'kept';
+
+/**
+ * Procesa UN día. 'empty' y 'kept' se omiten sin abortar.
+ *
+ * `enforceMinItems` solo se activa en la corrida automática: un día pedido a mano con `--date=`
+ * puede traer legítimamente pocos items (los feeds ya no alcanzan días viejos) y no debe fallar.
+ */
+async function processDay(
+  date: string,
+  redis: Redis | null,
+  enforceMinItems: boolean,
+): Promise<DayOutcome> {
+  const items = await collectItems(date, redis);
+  console.log(`[pipeline] ${date}: ${items.length} items a resumir`);
 
   if (DRY_RUN) {
     for (const i of items) {
@@ -145,6 +178,26 @@ async function processDay(date: string, redis: Redis | null): Promise<'ok' | 'em
   if (items.length === 0) {
     console.warn(`[pipeline] ${date}: sin items; se omite (no se llama a Gemini)`);
     return 'empty';
+  }
+
+  // Antes de gastar una llamada a Gemini: no degradar un día que ya está mejor guardado.
+  // Esta es la regla que impide que una corrida pobre destruya un día bueno.
+  if (redis && !SKIP_WRITE) {
+    const previous = await storedCollected(redis, date);
+    if (shouldKeepStored(previous, items.length, FORCE)) {
+      console.warn(
+        `[pipeline] ${date}: ya guardado con ${previous} items (> ${items.length} de ahora); ` +
+          'no se sobrescribe (usa --force para forzar)',
+      );
+      return 'kept';
+    }
+  }
+
+  if (enforceMinItems && items.length < MIN_ITEMS_TARGET) {
+    throw new Error(
+      `${date}: solo ${items.length} items (mínimo ${MIN_ITEMS_TARGET}). ` +
+        '¿Corrió el recolector? Revisa el workflow "Collect raw news".',
+    );
   }
 
   const result = await summarizeWithGemini(items);
@@ -180,8 +233,9 @@ async function processDay(date: string, redis: Redis | null): Promise<'ok' | 'em
 
 async function main() {
   const explicit = explicitDate();
-  const now = new Date(Date.now() - GRACE_MS);
-  const targetDate = explicit ?? newsDateString(now);
+  // Siempre "ayer" en ET: el día ya cerró, así que sus fuentes están completas. Se calcula desde
+  // la FECHA ET, no restando horas, para que el retraso del cron de GitHub no mueva el objetivo.
+  const targetDate = explicit ?? latestPublishableDate();
 
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -190,36 +244,20 @@ async function main() {
   }
   const redis = url && token ? new Redis({ url, token }) : null;
 
-  // Con --date solo ese día. En corrida normal: día actual + huecos intermedios de la ventana,
-  // el actual primero y los huecos de más reciente a más antiguo.
-  let dates = [targetDate];
-  if (!explicit && !DRY_RUN && !SKIP_WRITE && redis) {
-    const gaps = (await findIntermediateGaps(redis, now, targetDate)).sort().reverse();
-    if (gaps.length > 0) {
-      console.log(`[pipeline] días intermedios faltantes a rellenar: ${gaps.join(', ')}`);
-    }
-    dates = [targetDate, ...gaps];
+  const label = explicit ? 'día pedido' : 'día objetivo (ayer en ET)';
+  console.log(`[pipeline] ${label}: ${targetDate}${DRY_RUN ? ' (dry-run)' : ''}`);
+
+  // Un día por corrida, nada más. Rehacer un día pasado es una decisión manual y explícita:
+  //   npm run pipeline -- --date=YYYY-MM-DD [--force]
+  // El pipeline nunca decide por su cuenta reescribir un día ya publicado.
+  try {
+    await processDay(targetDate, redis, !explicit);
+  } catch (err) {
+    console.error(
+      `[pipeline] ${targetDate} ERROR: ${err instanceof Error ? err.stack : String(err)}`,
+    );
+    process.exit(1);
   }
-
-  console.log(`[pipeline] día actual (ET): ${targetDate}${DRY_RUN ? ' (dry-run)' : ''}`);
-
-  // El día actual es obligatorio (si falla → exit 1); los backfills son best-effort.
-  let targetFailed = false;
-  for (const date of dates) {
-    try {
-      await processDay(date, redis);
-    } catch (err) {
-      const detail = err instanceof Error ? err.stack : String(err);
-      if (date === targetDate) {
-        console.error(`[pipeline] ${date} (día actual) ERROR: ${detail}`);
-        targetFailed = true;
-      } else {
-        console.warn(`[pipeline] ${date} (backfill) falló, se continúa: ${detail}`);
-      }
-    }
-  }
-
-  if (targetFailed) process.exit(1);
 }
 
 main().catch((err) => {

@@ -1,0 +1,36 @@
+name: Collect raw news
+
+# Recolector: acumula los items del día en Redis (`raw:YYYY-MM-DD`) sin resumir nada.
+# Corre seguido porque los feeds son ventanas cortas — The Verge solo expone 10 items (~5 h),
+# así que una única pasada diaria no puede ver un día completo.
+on:
+  schedule:
+    # Cada 3 h (8 corridas/día) para no cargar la cuota gratuita de Upstash. Sigue con margen
+    # sobre la ventana más corta, la de The Verge (~5 h). Minuto 23 a propósito: los crons en el
+    # minuto :00 son los más congestionados de GitHub Actions y los que más se retrasan.
+    - cron: "23 */3 * * *"
+  workflow_dispatch:
+
+# Si un run se retrasa y se solapa con el siguiente, no hace falta acumular dos veces.
+concurrency:
+  group: collect-news
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run collect
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}

@@ -10,7 +10,9 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
+    "collect": "tsx scripts/collect.ts",
     "pipeline": "tsx scripts/daily-news.ts",
+    "selftest": "tsx scripts/selftest.ts",
     "init:full": "npm i && npm run build && npm run dev"
   },
   "dependencies": {

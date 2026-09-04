@@ -15,7 +15,15 @@ export interface GeminiResult {
   stories: GeminiStory[];
 }
 
-const DEFAULT_MODELS = ['gemini-3.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash'];
+// Cadena de respaldo: se prefiere 3.8-flash y se cae a los flash anteriores. Solo modelos
+// flash (los pro cuestan más y el prompt no los necesita). Verificado contra la lista de
+// modelos de la API: gemini-2.5-pro y gemini-2.5-flash ya no existen y daban 404.
+const DEFAULT_MODELS = [
+  'gemini-3.8-flash',
+  'gemini-3.7-flash',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+];
 
 const bilingualString = {
   type: Type.OBJECT,

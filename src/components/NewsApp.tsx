@@ -12,7 +12,7 @@ import SummaryPanel from '@/components/SummaryPanel';
 import { Skeleton } from '@/components/ui/skeleton/skeleton';
 import { Spinner } from '@/components/ui/spinner/spinner';
 import { Typography } from '@/components/ui/typography/typography';
-import { lastNDates } from '@/lib/date';
+import { DISPLAY_DAYS, publishableDates } from '@/lib/date';
 import { stop as stopSpeech } from '@/lib/tts';
 import { useLang } from '@/lib/useLang';
 import {
@@ -71,7 +71,7 @@ export default function NewsApp() {
   const [selectedSources, setSelectedSources] = useSourceFilter();
   const [adsEnabled, setAdsEnabled] = useAdsEnabled();
   const fallbackDates = useMemo(
-    () => lastNDates(7).map((date) => ({ date, available: true })),
+    () => publishableDates(DISPLAY_DAYS).map((date) => ({ date, available: true })),
     [],
   );
   const [dates, setDates] = useState<DateAvailability[]>(fallbackDates);

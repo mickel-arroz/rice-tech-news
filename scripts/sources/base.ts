@@ -6,11 +6,19 @@ export type SourceItem = Omit<RawItem, 'index'>;
 
 export interface NewsSource {
   readonly name: SourceName;
+  /** Todo lo que el feed expone ahora mismo, sin filtrar por día: lo que consume el recolector. */
+  fetchAll(): Promise<SourceItem[]>;
+  /** Solo lo publicado en `newsDate` (hora ET). */
   fetchItems(newsDate: string): Promise<SourceItem[]>;
 }
 
-// Template method: request + validación + filtro "publicado el día de la corrida"
-// uniformes; cada adapter solo implementa parse() para su protocolo
+/** Un item sin título, sin URL o con fecha ilegible no sirve para nada aguas abajo. */
+function isUsable(item: SourceItem): boolean {
+  return Boolean(item.title) && Boolean(item.url) && !Number.isNaN(new Date(item.publishedAt).getTime());
+}
+
+// Template method: request + validación uniformes; cada adapter solo implementa parse()
+// para su protocolo. El filtro por día vive aparte porque el recolector no lo quiere.
 export abstract class HttpSource implements NewsSource {
   constructor(
     readonly name: SourceName,
@@ -19,19 +27,18 @@ export abstract class HttpSource implements NewsSource {
 
   protected abstract parse(body: string): SourceItem[];
 
-  async fetchItems(newsDate: string): Promise<SourceItem[]> {
+  async fetchAll(): Promise<SourceItem[]> {
     const res = await fetch(this.url, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: { 'user-agent': 'RiceTechNews/1.0 (+daily news aggregator)' },
     });
     if (!res.ok) throw new Error(`${this.name}: HTTP ${res.status}`);
 
-    return this.parse(await res.text()).filter(
-      (item) =>
-        item.title &&
-        item.url &&
-        !Number.isNaN(new Date(item.publishedAt).getTime()) &&
-        newsDateString(new Date(item.publishedAt)) === newsDate,
-    );
+    return this.parse(await res.text()).filter(isUsable);
+  }
+
+  async fetchItems(newsDate: string): Promise<SourceItem[]> {
+    const items = await this.fetchAll();
+    return items.filter((item) => newsDateString(new Date(item.publishedAt)) === newsDate);
   }
 }

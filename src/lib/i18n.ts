@@ -18,11 +18,11 @@ export const strings = {
     loading: 'Cargando transmisión…',
     emptyTitle: 'Sin datos para este día',
     emptyBody:
-      'Aún no hay noticias procesadas para esta fecha. El sistema se actualiza al final de cada día (~11:00 PM, hora del Este de EE.UU.).',
+      'Aún no hay noticias procesadas para esta fecha. El sitio publica el día anterior una vez que ha cerrado, cada madrugada (hora del Este de EE.UU.).',
     errorTitle: 'Error de conexión',
     errorBody: 'No se pudo recuperar la transmisión de noticias.',
     retry: 'Reintentar',
-    today: 'Hoy',
+    yesterday: 'Ayer',
     close: 'Cerrar',
     developedBy: 'Desarrollado por',
     storiesCount: (n: number) => `${n} noticias`,
@@ -53,11 +53,11 @@ export const strings = {
     loading: 'Loading transmission…',
     emptyTitle: 'No data for this day',
     emptyBody:
-      'No processed news for this date yet. The system updates at the end of each day (~11:00 PM US Eastern time).',
+      'No processed news for this date yet. The site publishes the previous day once it has closed, every early morning (US Eastern time).',
     errorTitle: 'Connection error',
     errorBody: 'The news transmission could not be retrieved.',
     retry: 'Retry',
-    today: 'Today',
+    yesterday: 'Yesterday',
     close: 'Close',
     developedBy: 'Developed by',
     storiesCount: (n: number) => `${n} stories`,
@@ -125,7 +125,7 @@ export const aboutContent = {
       'Rice Tech News reúne cada día las noticias más relevantes de tecnología y programación, las agrupa y las resume con inteligencia artificial, en español e inglés.',
     whatTitle: 'Cómo funciona',
     whatBody:
-      'Un proceso automatizado se ejecuta cada noche (GitHub Actions, ~11:00 PM hora del Este de EE.UU.): recopila las noticias de varias fuentes, las agrupa en historias, genera un resumen bilingüe con IA y lo guarda en Upstash Redis. El sitio, construido con Astro y desplegado en Vercel, sirve esos resúmenes al instante.',
+      'Un recolector automatizado (GitHub Actions) recorre las fuentes cada dos horas y va acumulando las noticias del día. Cuando el día cierra, hora del Este de EE.UU., un segundo proceso toma el día completo, lo agrupa en historias, genera un resumen bilingüe con IA y lo guarda en Upstash Redis. Por eso el día más reciente es siempre el de ayer: es la única forma de resumirlo completo. El sitio, construido con Astro y desplegado en Vercel, sirve esos resúmenes al instante.',
     sourcesTitle: 'Fuentes de noticias',
     techTitle: 'Tecnologías',
     tech: [
@@ -151,7 +151,7 @@ export const aboutContent = {
       'Rice Tech News gathers the most relevant tech and programming news every day, clusters it, and summarizes it with artificial intelligence, in Spanish and English.',
     whatTitle: 'How it works',
     whatBody:
-      'An automated job runs every night (GitHub Actions, ~11:00 PM US Eastern time): it collects news from several sources, groups them into stories, generates a bilingual summary with AI, and stores it in Upstash Redis. The site, built with Astro and deployed on Vercel, serves those summaries instantly.',
+      'An automated collector (GitHub Actions) sweeps the sources every two hours, accumulating the day as it happens. Once the day closes in US Eastern time, a second job takes the complete day, groups it into stories, generates a bilingual summary with AI, and stores it in Upstash Redis. That is why the most recent day is always yesterday: it is the only way to summarize it in full. The site, built with Astro and deployed on Vercel, serves those summaries instantly.',
     sourcesTitle: 'News sources',
     techTitle: 'Technologies',
     tech: [

@@ -1,12 +1,13 @@
 import type { APIRoute } from 'astro';
-import { DISPLAY_DAYS, LOOKBACK_DAYS, lastNDates, redisKeyForDate } from '@/lib/date';
+import { DISPLAY_DAYS, LOOKBACK_DAYS, publishableDates, redisKeyForDate } from '@/lib/date';
 import { getRedis } from '@/lib/redis';
 import type { DateAvailability } from '@/lib/types';
 
 export const prerender = false;
 
 export const GET: APIRoute = async () => {
-  const window = lastNDates(LOOKBACK_DAYS);
+  // publishableDates arranca en ayer: hoy nunca se ofrece, su dia aun no ha cerrado
+  const window = publishableDates(LOOKBACK_DAYS);
 
   try {
     // JSON.MGET de un solo campo: verifica existencia sin traer los documentos
