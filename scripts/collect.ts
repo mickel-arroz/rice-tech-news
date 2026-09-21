@@ -1,16 +1,18 @@
 import { Redis } from '@upstash/redis';
 import { newsDateString, rawKeyForDate } from '../src/lib/date';
+import { RAW_RETENTION_DAYS } from './digest-rules';
 import type { SourceItem } from './sources/base';
 import { createAllSources } from './sources/factory';
 
 const DRY_RUN = process.argv.includes('--dry-run');
 
 // Los buckets viven bastante más que la ventana visible del sitio (LOOKBACK_DAYS = 21) no hace
-// falta: solo se necesitan mientras el día pueda regenerarse. 10 días desde la última escritura.
-const RAW_TTL_SECONDS = 10 * 86_400;
+// falta: solo se necesitan mientras el día pueda regenerarse. Los días salen de digest-rules
+// porque el digest usa la misma ventana para decidir qué huecos todavía puede reconstruir.
+const RAW_TTL_SECONDS = RAW_RETENTION_DAYS * 86_400;
 
 /**
- * Recolector. Corre cada 2 h y ACUMULA; no resume nada y nunca toca las claves `news:*`.
+ * Recolector. Corre cada hora y ACUMULA; no resume nada y nunca toca las claves `news:*`.
  *
  * Existe porque los feeds son ventanas cortas: The Verge expone 10 items (~5 h), TechCrunch 20
  * (~24 h), Ars 20 (~33 h). Una sola pasada al día no puede ver un día completo — a las 04:00 ET

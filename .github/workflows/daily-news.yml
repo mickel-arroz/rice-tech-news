@@ -4,11 +4,27 @@ name: Daily news pipeline
 # lo resume con Gemini y lo guarda en `news:YYYY-MM-DD`.
 on:
   schedule:
-    # 08:47 UTC ≈ 04:47 ET. El día objetivo se calcula desde la FECHA ET, no restando horas,
-    # así que cualquier hora del mismo día ET da el mismo resultado: hay ~19 h de margen antes
-    # de que un retraso de GitHub pudiera mover el objetivo. Minuto 47 para esquivar la cola
-    # del minuto :00, que es donde se acumulan los retrasos de horas.
-    - cron: "47 8 * * *"
+    # Cuatro intentos para el MISMO día objetivo. Antes era una sola corrida al día: si Gemini
+    # devolvía 503 por saturación, el día se quedaba sin publicar hasta el siguiente (así se
+    # perdieron 2026-09-13, -14 y -15).
+    #
+    # Las horas NO están elegidas por comodidad sino por margen ante el retraso de GitHub, que
+    # aquí es sistemático: el cron pedía 08:47 UTC y se entregaba entre 13:00 y 15:20 UTC, o sea
+    # 4,5-6,5 h tarde, todos los días. El día objetivo se deriva de la FECHA ET, así que lo único
+    # que puede romperlo es una corrida que cruce medianoche ET (04:00 UTC en EDT, 05:00 en EST)
+    # y pase a apuntar a otro día. Margen de cada ranura antes de cruzar:
+    #
+    #   UTC 05:47  →  22,2 h (EDT) / 23,2 h (EST)
+    #   UTC 09:47  →  18,2 h / 19,2 h
+    #   UTC 13:47  →  14,2 h / 15,2 h
+    #   UTC 17:47  →  10,2 h / 11,2 h   ← la más ajustada, aun así 3,7 h sobre el peor retraso visto
+    #
+    # Ninguna ranura arranca antes de las 05:00 UTC, así que tampoco puede caer del lado anterior
+    # de la frontera con retraso cero. Los intentos posteriores al que publica salen sin llamar a
+    # Gemini (shouldKeepStored con `automatic`), y si el recolector venía atrasado y aporta más
+    # items, el intento siguiente rehace el día en vez de dejarlo congelado flaco.
+    # Minuto 47 para esquivar la cola del minuto :00, la más congestionada de GitHub Actions.
+    - cron: "47 5,9,13,17 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -18,7 +34,7 @@ concurrency:
 jobs:
   aggregate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
 

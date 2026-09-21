@@ -1,5 +1,10 @@
 import { Redis } from '@upstash/redis';
-import { latestPublishableDate, rawKeyForDate, redisKeyForDate } from '../src/lib/date';
+import {
+  latestPublishableDate,
+  publishableDates,
+  rawKeyForDate,
+  redisKeyForDate,
+} from '../src/lib/date';
 import type {
   DayRecord,
   Lang,
@@ -7,7 +12,13 @@ import type {
   LocalizedStory,
   StorySource,
 } from '../src/lib/types';
-import { capHackerNews, mergeByUrl, shouldKeepStored } from './digest-rules';
+import {
+  capHackerNews,
+  mergeByUrl,
+  RAW_RETENTION_DAYS,
+  shouldKeepStored,
+  shouldRepairGap,
+} from './digest-rules';
 import { summarizeWithGemini, type GeminiStory } from './gemini';
 import type { SourceItem } from './sources/base';
 import { createAllSources } from './sources/factory';
@@ -89,10 +100,24 @@ async function collectItems(date: string, redis: Redis | null): Promise<RawItem[
   return capped.map((item, index) => ({ ...item, index }));
 }
 
-/** Cuántos items tenía el registro ya guardado (0 si no existe). */
+/**
+ * Cuántos items tenía el registro ya guardado (0 si no existe).
+ *
+ * Si la clave quedara como string plano —el caso que el DEL previo al JSON.SET ya anticipa—
+ * JSON.GET responde WRONGTYPE. Se trata como "no hay nada guardado" en vez de tumbar la corrida:
+ * el camino normal sigue y el DEL + JSON.SET del final repara la clave.
+ */
 async function storedCollected(redis: Redis, date: string): Promise<number> {
-  const value = await redis.json.get<number[]>(redisKeyForDate(date), '$.stats.collected');
-  return Array.isArray(value) ? Number(value[0] ?? 0) : 0;
+  try {
+    const value = await redis.json.get<number[]>(redisKeyForDate(date), '$.stats.collected');
+    return Array.isArray(value) ? Number(value[0] ?? 0) : 0;
+  } catch (err) {
+    console.warn(
+      `[redis] no se pudo leer ${redisKeyForDate(date)}: ${String((err as Error)?.message ?? err)}` +
+        '; se trata como día no guardado',
+    );
+    return 0;
+  }
 }
 
 function slugify(title: string, used: Set<string>): string {
@@ -157,13 +182,16 @@ type DayOutcome = 'ok' | 'empty' | 'preview' | 'kept';
 /**
  * Procesa UN día. 'empty' y 'kept' se omiten sin abortar.
  *
- * `enforceMinItems` solo se activa en la corrida automática: un día pedido a mano con `--date=`
- * puede traer legítimamente pocos items (los feeds ya no alcanzan días viejos) y no debe fallar.
+ * Las dos opciones distinguen la corrida automática de un `--date=` pedido a mano:
+ * - `enforceMinItems`: un día pedido a mano puede traer legítimamente pocos items (los feeds ya
+ *   no alcanzan días viejos) y no debe fallar por ello.
+ * - `automatic`: activa la comparación `>=` de `shouldKeepStored`, para que los reintentos del
+ *   cron de cada 6 h salgan sin gastar otra llamada a Gemini.
  */
 async function processDay(
   date: string,
   redis: Redis | null,
-  enforceMinItems: boolean,
+  { enforceMinItems, automatic }: { enforceMinItems: boolean; automatic: boolean },
 ): Promise<DayOutcome> {
   const items = await collectItems(date, redis);
   console.log(`[pipeline] ${date}: ${items.length} items a resumir`);
@@ -180,14 +208,15 @@ async function processDay(
     return 'empty';
   }
 
-  // Antes de gastar una llamada a Gemini: no degradar un día que ya está mejor guardado.
-  // Esta es la regla que impide que una corrida pobre destruya un día bueno.
+  // Antes de gastar una llamada a Gemini: no degradar un día que ya está mejor guardado, y en la
+  // corrida automática tampoco rehacer uno que ya está igual de completo (el cron reintenta cada
+  // 6 h y el segundo intento no debe volver a pagar a Gemini).
   if (redis && !SKIP_WRITE) {
     const previous = await storedCollected(redis, date);
-    if (shouldKeepStored(previous, items.length, FORCE)) {
-      console.warn(
-        `[pipeline] ${date}: ya guardado con ${previous} items (> ${items.length} de ahora); ` +
-          'no se sobrescribe (usa --force para forzar)',
+    if (shouldKeepStored(previous, items.length, FORCE, automatic)) {
+      console.log(
+        `[pipeline] ${date}: ya publicado con ${previous} items (ahora hay ${items.length}); ` +
+          'no se sobrescribe ni se llama a Gemini (usa --force para forzar)',
       );
       return 'kept';
     }
@@ -231,6 +260,45 @@ async function processDay(
   return 'ok';
 }
 
+/**
+ * Rellena UN hueco: el día publicable más reciente que no tiene ningún registro pero cuyo bucket
+ * `raw:` todavía da para reconstruirlo.
+ *
+ * Uno por corrida a propósito. Hay 4 corridas al día, así que un hueco se cierra el mismo día y
+ * el tiempo de cada corrida sigue acotado (una llamada a Gemini tarda, y el job tiene 30 min).
+ *
+ * Nunca puede degradar nada: solo mira fechas sin registro (`shouldRepairGap` exige `stored === 0`)
+ * y `processDay` vuelve a pasar por `shouldKeepStored` antes de escribir. Y nunca puede tumbar la
+ * corrida: el día objetivo ya se resolvió, así que un fallo aquí solo se avisa.
+ */
+async function repairOneGap(redis: Redis, targetDate: string): Promise<void> {
+  for (const date of publishableDates(RAW_RETENTION_DAYS)) {
+    if (date === targetDate) continue;
+    const stored = await storedCollected(redis, date);
+    const rawCount = await redis.hlen(rawKeyForDate(date));
+    if (!shouldRepairGap(stored, rawCount, MIN_ITEMS_TARGET)) continue;
+
+    console.log(`[pipeline] hueco detectado: ${date} sin registro y ${rawCount} items en raw`);
+    try {
+      // enforceMinItems: false — el filtro real ya lo hizo shouldRepairGap sobre el bucket raw,
+      // y los feeds vivos no alcanzan un día viejo, así que el mínimo no aplica aquí.
+      const outcome = await processDay(date, redis, { enforceMinItems: false, automatic: true });
+      // 'empty' = el bucket tenía entradas pero ninguna utilizable. Ese día no se va a poder
+      // rellenar nunca, así que no puede quedarse acaparando el único intento de cada corrida:
+      // se sigue con el hueco siguiente en vez de bloquear los demás para siempre.
+      if (outcome === 'empty') continue;
+    } catch (err) {
+      // Un fallo aquí (p.ej. toda la cadena saturada) no se reintenta con otro día: el día
+      // objetivo ya está resuelto y no vale la pena quemar más cuota en la misma corrida.
+      console.warn(
+        `[pipeline] no se pudo rellenar ${date}: ${String((err as Error)?.message ?? err)}`,
+      );
+    }
+    return;
+  }
+  console.log('[pipeline] sin huecos que rellenar en la ventana de raw');
+}
+
 async function main() {
   const explicit = explicitDate();
   // Siempre "ayer" en ET: el día ya cerró, así que sus fuentes están completas. Se calcula desde
@@ -247,16 +315,21 @@ async function main() {
   const label = explicit ? 'día pedido' : 'día objetivo (ayer en ET)';
   console.log(`[pipeline] ${label}: ${targetDate}${DRY_RUN ? ' (dry-run)' : ''}`);
 
-  // Un día por corrida, nada más. Rehacer un día pasado es una decisión manual y explícita:
-  //   npm run pipeline -- --date=YYYY-MM-DD [--force]
-  // El pipeline nunca decide por su cuenta reescribir un día ya publicado.
+  // El pipeline nunca REESCRIBE por su cuenta un día ya publicado: rehacer uno es una decisión
+  // manual y explícita (`--date=YYYY-MM-DD [--force]`). Lo único que hace solo es rellenar huecos
+  // totales, fechas sin ningún registro — ahí no hay nada que pisar.
   try {
-    await processDay(targetDate, redis, !explicit);
+    await processDay(targetDate, redis, { enforceMinItems: !explicit, automatic: !explicit });
   } catch (err) {
     console.error(
       `[pipeline] ${targetDate} ERROR: ${err instanceof Error ? err.stack : String(err)}`,
     );
     process.exit(1);
+  }
+
+  // Solo en la corrida automática: un `--date=` pedido a mano sigue siendo un día y nada más.
+  if (redis && !explicit && !DRY_RUN && !SKIP_WRITE) {
+    await repairOneGap(redis, targetDate);
   }
 }
 

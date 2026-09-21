@@ -36,7 +36,7 @@ export const SOURCE_CONFIGS: SourceConfig[] = [
     // `tags=front_page` ignora hitsPerPage: tope a las ~30 historias de la portada actual,
     // repartidas en varios días (≈12 por día). `search_by_date` sí pagina, y el umbral de
     // puntos filtra el ruido de /newest sin recortar el día. Cobertura medida: ~83 items/día
-    // contra 12. Los puntos suben con el tiempo, pero el recolector vuelve a pasar cada 2 h
+    // contra 12. Los puntos suben con el tiempo, pero el recolector vuelve a pasar cada hora
     // y el HSET por URL actualiza la historia cuando cruza el umbral.
     name: 'Hacker News',
     url: 'https://hn.algolia.com/api/v1/search_by_date?tags=story&hitsPerPage=100&numericFilters=points%3E20',

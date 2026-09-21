@@ -5,10 +5,17 @@ name: Collect raw news
 # así que una única pasada diaria no puede ver un día completo.
 on:
   schedule:
-    # Cada 3 h (8 corridas/día) para no cargar la cuota gratuita de Upstash. Sigue con margen
-    # sobre la ventana más corta, la de The Verge (~5 h). Minuto 23 a propósito: los crons en el
-    # minuto :00 son los más congestionados de GitHub Actions y los que más se retrasan.
-    - cron: "23 */3 * * *"
+    # Cada hora, y no es exceso: GitHub no solo retrasa las corridas programadas, las DESCARTA.
+    # Midiendo el historial real con `23 */3` (8 pedidas/día) llegaban ~5, con huecos de hasta
+    # 7,9 h y 23 de 39 huecos por encima de las ~5 h que dura la ventana de The Verge. Todo item
+    # que se cae del feed dentro de un hueco se pierde para siempre: es la causa de que un día
+    # llegue flaco al digest. Pidiendo cada hora, incluso descartando la mitad, el hueco efectivo
+    # queda muy por debajo de esa ventana.
+    #
+    # Coste en Upstash: ~15 comandos por corrida × 24 = ~360/día ≈ 11 k/mes, ~2 % del medio millón
+    # mensual del plan gratuito. La preocupación de cuota que fijó las 3 h era infundada.
+    # Minuto 23 a propósito: el minuto :00 es el más congestionado de GitHub Actions.
+    - cron: "23 * * * *"
   workflow_dispatch:
 
 # Si un run se retrasa y se solapa con el siguiente, no hace falta acumular dos veces.
