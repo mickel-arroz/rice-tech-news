@@ -125,7 +125,7 @@ export const aboutContent = {
       'Rice Tech News reúne cada día las noticias más relevantes de tecnología y programación, las agrupa y las resume con inteligencia artificial, en español e inglés.',
     whatTitle: 'Cómo funciona',
     whatBody:
-      'Un recolector automatizado (GitHub Actions) recorre las fuentes cada dos horas y va acumulando las noticias del día. Cuando el día cierra, hora del Este de EE.UU., un segundo proceso toma el día completo, lo agrupa en historias, genera un resumen bilingüe con IA y lo guarda en Upstash Redis. Por eso el día más reciente es siempre el de ayer: es la única forma de resumirlo completo. El sitio, construido con Astro y desplegado en Vercel, sirve esos resúmenes al instante.',
+      'Un recolector automatizado (GitHub Actions) recorre las fuentes cada hora y va acumulando las noticias del día. Cuando el día cierra, hora del Este de EE.UU., un segundo proceso toma el día completo, lo agrupa en historias, genera un resumen bilingüe con IA y lo guarda en Upstash Redis. Por eso el día más reciente es siempre el de ayer: es la única forma de resumirlo completo. El sitio, construido con Astro y desplegado en Vercel, sirve esos resúmenes al instante.',
     sourcesTitle: 'Fuentes de noticias',
     techTitle: 'Tecnologías',
     tech: [
@@ -151,7 +151,7 @@ export const aboutContent = {
       'Rice Tech News gathers the most relevant tech and programming news every day, clusters it, and summarizes it with artificial intelligence, in Spanish and English.',
     whatTitle: 'How it works',
     whatBody:
-      'An automated collector (GitHub Actions) sweeps the sources every two hours, accumulating the day as it happens. Once the day closes in US Eastern time, a second job takes the complete day, groups it into stories, generates a bilingual summary with AI, and stores it in Upstash Redis. That is why the most recent day is always yesterday: it is the only way to summarize it in full. The site, built with Astro and deployed on Vercel, serves those summaries instantly.',
+      'An automated collector (GitHub Actions) sweeps the sources every hour, accumulating the day as it happens. Once the day closes in US Eastern time, a second job takes the complete day, groups it into stories, generates a bilingual summary with AI, and stores it in Upstash Redis. That is why the most recent day is always yesterday: it is the only way to summarize it in full. The site, built with Astro and deployed on Vercel, serves those summaries instantly.',
     sourcesTitle: 'News sources',
     techTitle: 'Technologies',
     tech: [

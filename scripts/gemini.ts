@@ -15,15 +15,27 @@ export interface GeminiResult {
   stories: GeminiStory[];
 }
 
-// Cadena de respaldo: se prefiere 3.8-flash y se cae a los flash anteriores. Solo modelos
-// flash (los pro cuestan más y el prompt no los necesita). Verificado contra la lista de
-// modelos de la API: gemini-2.5-pro y gemini-2.5-flash ya no existen y daban 404.
+// Cadena de respaldo: se prefiere 3.8-flash y se baja por los flash anteriores, luego por los
+// flash-lite y al final por gemma. Ningún modelo pro (cuestan más y el prompt no los necesita).
+// Verificado contra la lista de modelos de la API: gemini-2.5-pro y gemini-2.5-flash ya no
+// existen y daban 404.
 const DEFAULT_MODELS = [
   'gemini-3.8-flash',
   'gemini-3.7-flash',
   'gemini-3.6-flash',
   'gemini-3.5-flash',
+  // Cuando la familia flash entera está saturada (503) no sirve de nada tener más flash: los
+  // lite tienen capacidad y cuota aparte, así que son el primer escalón real de respaldo.
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
+  // Último recurso, ya fuera de la familia Gemini. Peor clustering, pero un día publicado
+  // vale más que un día vacío.
+  'gemma-4-31b-it',
 ];
+
+// Tope de salida por modelo. 65536 es el de los flash; gemma no documenta el suyo y un valor
+// fuera de rango se rechaza con 400, así que se le pide un valor conservador.
+const maxOutputFor = (model: string) => (model.startsWith('gemma') ? 32_768 : 65_536);
 
 const bilingualString = {
   type: Type.OBJECT,
@@ -111,6 +123,22 @@ function isQuotaError(err: unknown): boolean {
   return /\b429\b|RESOURCE_EXHAUSTED|quota/i.test(msg);
 }
 
+/**
+ * 503: el modelo existe pero está saturado. Antes no caía en ningún clasificador y quemaba los
+ * 3 intentos con 60 s de espera en CADA modelo; con la cadena larga eso se comía el timeout del
+ * job sin llegar nunca a los lite.
+ */
+export function isOverloaded(err: unknown): boolean {
+  const msg = String((err as Error)?.message ?? err);
+  return /\b503\b|UNAVAILABLE|overloaded|high demand/i.test(msg);
+}
+
+/** 400: el modelo rechaza la petición (schema o maxOutputTokens). Reintentar no arregla nada. */
+export function isBadRequest(err: unknown): boolean {
+  const msg = String((err as Error)?.message ?? err);
+  return /\b400\b|INVALID_ARGUMENT/i.test(msg);
+}
+
 function validate(result: unknown, itemCount: number): asserts result is Omit<GeminiResult, 'model'> {
   const r = result as Omit<GeminiResult, 'model'>;
   if (!r || typeof r !== 'object') throw new Error('Respuesta no es un objeto');
@@ -159,7 +187,7 @@ export async function summarizeWithGemini(items: RawItem[]): Promise<GeminiResul
             responseMimeType: 'application/json',
             responseSchema,
             temperature: 0.3,
-            maxOutputTokens: 65536,
+            maxOutputTokens: maxOutputFor(model),
           },
         });
         const text = response.text;
@@ -172,7 +200,9 @@ export async function summarizeWithGemini(items: RawItem[]): Promise<GeminiResul
         errors.push(`${model}#${attempt}: ${msg.slice(0, 200)}`);
         console.warn(`[gemini] fallo ${model} intento ${attempt}: ${msg.slice(0, 300)}`);
         if (isModelUnavailable(err)) break; // modelo no existe → siguiente
+        if (isBadRequest(err)) break; // rechaza schema/config → siguiente
         if (isQuotaError(err) && attempt >= 2) break; // cuota agotada → siguiente
+        if (isOverloaded(err) && attempt >= 2) break; // saturado → siguiente, sin agotar los 3
         if (attempt < 3) await sleep(attempt === 1 ? 15_000 : 45_000);
       }
     }

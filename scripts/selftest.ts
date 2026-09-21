@@ -7,7 +7,14 @@ import {
   rawKeyForDate,
   redisKeyForDate,
 } from '../src/lib/date';
-import { capHackerNews, mergeByUrl, shouldKeepStored } from './digest-rules';
+import {
+  capHackerNews,
+  mergeByUrl,
+  RAW_RETENTION_DAYS,
+  shouldKeepStored,
+  shouldRepairGap,
+} from './digest-rules';
+import { isBadRequest, isOverloaded } from './gemini';
 import type { SourceItem } from './sources/base';
 
 // Pruebas de las reglas puras: fechas y decisiones del digest. Sin red ni Redis.
@@ -141,6 +148,38 @@ eq('--force ignora la guarda', shouldKeepStored(59, 6, true), false);
 // El escenario real que hundió el sitio: un run de madrugada traía 1 item contra los 59 de un
 // día completo, y lo sobrescribía sin más.
 eq('escenario 21→1: bloqueado', shouldKeepStored(59, 1), true);
+
+section('shouldKeepStored automático: el cron cada 6 h no vuelve a pagar a Gemini');
+// El día objetivo ya cerró, así que el segundo intento ve la misma cantidad y debe salir gratis.
+eq('empate: se salta', shouldKeepStored(50, 50, false, true), true);
+eq('nuevo peor: se preserva', shouldKeepStored(59, 6, false, true), true);
+// Un cron retrasado puede haber publicado el día demasiado pronto y flaco; el intento siguiente,
+// que sí ve más items, todavía tiene que poder mejorarlo. Por eso no es un chequeo de existencia.
+eq('hay más items ahora: se rehace', shouldKeepStored(14, 30, false, true), false);
+eq('día nuevo (no había nada)', shouldKeepStored(0, 79, false, true), false);
+eq('--force ignora automatic', shouldKeepStored(50, 50, true, true), false);
+// `--date=` explícito conserva el comportamiento documentado en AGENTS.md: el empate sobrescribe.
+eq('explícito: empate sigue sobrescribiendo', shouldKeepStored(50, 50, false, false), false);
+
+section('shouldRepairGap: rellenar un hueco no puede pisar nada');
+eq('sin registro y raw sano → se rellena', shouldRepairGap(0, 138, 10), true);
+// La guarda clave: si el día ya existe no se toca, por pobre que sea. Rellenar y preservar son
+// reglas complementarias, nunca en conflicto.
+eq('ya existe → no se toca', shouldRepairGap(66, 138, 10), false);
+eq('existe con pocos items → tampoco', shouldRepairGap(3, 138, 10), false);
+eq('sin registro pero raw vacío → imposible', shouldRepairGap(0, 0, 10), false);
+eq('sin registro y raw justo al límite', shouldRepairGap(0, 10, 10), true);
+eq('sin registro y raw por debajo', shouldRepairGap(0, 9, 10), false);
+// La ventana de rellenado no puede pasarse del TTL de los buckets raw.
+eq('ventana de rellenado = TTL de raw', RAW_RETENTION_DAYS, 10);
+
+section('clasificación de errores de Gemini');
+// El 503 no caía en ningún clasificador y quemaba los 3 intentos en cada modelo de la cadena.
+eq('503 es saturación', isOverloaded('[503 Service Unavailable] The model is overloaded'), true);
+eq('UNAVAILABLE es saturación', isOverloaded({ message: 'UNAVAILABLE: high demand' }), true);
+eq('429 no es saturación', isOverloaded('[429] RESOURCE_EXHAUSTED'), false);
+eq('400 es petición inválida', isBadRequest('[400] INVALID_ARGUMENT: maxOutputTokens'), true);
+eq('503 no es petición inválida', isBadRequest('[503] UNAVAILABLE'), false);
 
 console.log(failed === 0 ? '\nTODO OK' : `\n${failed} PRUEBAS FALLARON`);
 process.exit(failed === 0 ? 0 : 1);
